@@ -127,6 +127,82 @@ An example of running the Replicated installation script with a proxy server is:
 curl -x http://<proxy_address>:<proxy_port> https://get.replicated.com/docker | sudo bash
 ```
 
+# Configure OverlayFS as Docker storage driver.
+
+## RHEL
+### 1. At the time OverlayFS can not run correctly if SELinux is enabled. Before enabling OverlayFS as Docker's storage driver we have to disable SElinux.
+```shell
+sudo sed -i --follow-symlinks 's/^SELINUX=.*/SELINUX=disabled/g' /etc/selinux/config
+```
+
+### 2. Enable the OverlayFS kernel module to be loaded at boot time.
+```shell
+echo overlay > /etc/modules-load.d/overlay.conf
+```
+
+### 3. Enable OverlayFS storage driver for Docker.
+```shell
+sudo mkdir -p /etc/systemd/system/docker.service.d && sudo tee /etc/systemd/system/docker.service.d/override.conf <<- EOF
+[Service]
+ExecStart=
+ExecStart=/usr/bin/docker daemon --storage-driver=overlay -H fd://
+EOF
+```
+
+### 4. Lastly in order for SELinux to become disabled a reboot is required. Once the host comes back up let's verify three things: SElinux is disabled, the OverlayFS module loaded, and docker is using the overlay storage driver.
+```shell
+[root@rhel-storage-testing ~]# sestatus
+SELinux status:                 disabled
+
+[root@rhel-storage-testing ~]# lsmod |grep overlay
+overlay                42451  7
+
+[root@rhel-storage-testing ~]# docker info
+Containers: 4
+ Running: 3
+ Paused: 0
+ Stopped: 1
+Images: 3
+Server Version: 1.11.1
+Storage Driver: overlay
+ Backing Filesystem: extfs
+Logging Driver: json-file
+Cgroup Driver: cgroupfs
+Plugins:
+ Volume: local
+ Network: null host bridge
+Kernel Version: 3.19.0-64-generic
+Operating System: Ubuntu 14.04.4 LTS
+OSType: linux
+Architecture: x86_64
+CPUs: 4
+Total Memory: 14.69 GiB
+Name: debian-storage-test
+ID: XJEF:OHMZ:5LU4:6T22:3TLJ:KGE2:DWYV:BXRM:7CVZ:SVDZ:Z4VF:I65W
+Docker Root Dir: /var/lib/docker
+Debug mode (client): false
+Debug mode (server): false
+Registry: https://index.docker.io/v1/
+WARNING: No swap limit support
+```
+
+## Debian
+
+### 1. Enable OverlayFS module to load at boot.
+```shell
+echo overlay >> /etc/modules
+```
+
+### 2. Load the OverlayFS module.
+```shell
+modprobe overlay
+```
+
+### 3. Enable OverlayFS as the docker storage driver.
+```shell
+ echo 'DOCKER_OPTS="-s overlay"' >> /etc/default/docker
+```
+
 # Post-Installation Maintenance
 ## Restarting Replicated
 If you installed Replicated using the easy installation script, the script will have created an init service you can
